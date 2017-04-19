@@ -8,7 +8,7 @@
 * 代码里面都有选项距离等等相关参数，从而导致摄像头扫描或照片识别效率低下
 * 答题卡太简单，易于识别，但是实际使用中不可能有如此简单的答题卡
 
-所以，[answer-sheet-scan](https://github.com/inuyasha2012/answer-sheet-scan)基本上是世面上答题卡识别准确率最高的开源代码
+所以，[answer-sheet-scan](https://github.com/inuyasha2012/answer-sheet-scan)基本上是市面上答题卡识别准确率最高的开源代码
 
 ## 整个流程如下，详细请看代码注释
 * 打开摄像头扫描答题卡，看，是这个挫样
