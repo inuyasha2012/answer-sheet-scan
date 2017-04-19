@@ -1,5 +1,7 @@
 # 电脑摄像头扫描答题卡
 
+可能是最灵活准确率最高的摄像头答题卡扫描开源实现
+
 ## 主要参考
 * [python CV 趣味项目 答题卡识别](http://www.jianshu.com/p/2bbdb27ee7b3)
 * [Tutorial: Creating a Multiple Choice Scanner with OpenCV](http://blog.ayoungprogrammer.com/2013/03/tutorial-creating-multiple-choice.html/)
@@ -47,6 +49,9 @@
 
 ![](https://github.com/inuyasha2012/answer-sheet-scan/blob/master/pic/p8.png)
 
-* 依据轮廓左上角坐标从上而下排序轮廓，若1排有3题，则认为前5个轮廓是第1题，其中第1个轮廓是题号，第6-10个轮廓是第2题，其中第6个轮廓是题号
+* 依据轮廓左上角坐标从上而下排序轮廓，若1排有3题，每题4个选项，则认为前5个轮廓是第1题，其中第1个轮廓是题号，第6-10个轮廓是第2题，其中第6个轮廓是题号
 
 * 根据提取的轮廓的左上角坐标和长宽，计算轮廓区域内的白点个数，白点个数低于某个阈值，初步认为是选择了该选项
+
+## 其他
+其他细节（例如选项框轮廓个数检测）详见代码以及注释
