@@ -60,4 +60,4 @@
 * 安装opencv2
 * 安装imutils
 * 运行请 ```$ python main.py```
-* 测试请 ```$python tests/test_sheet.py```
+* 测试请 ```$ python tests/test_sheet.py```
