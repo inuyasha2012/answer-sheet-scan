@@ -55,3 +55,9 @@
 
 ## 其他
 其他细节（例如选项框轮廓个数检测）详见代码以及注释
+
+## 如何使用
+* 安装opencv2
+* 安装imutils
+* 运行请 ```$ python main.py```
+* 测试请 ```$python tests/test_sheet.py```
