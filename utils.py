@@ -1,10 +1,12 @@
 # coding=utf-8
+import math
 import numpy as np
 import cv2
 from imutils import auto_canny, contours
 from e import PolyNodeCountError
+from score import score
 from settings import CHOICES, SHEET_AREA_MIN_RATIO, PROCESS_BRIGHT_COLS, PROCESS_BRIGHT_ROWS, BRIGHT_VALUE, \
-    CHOICE_COL_COUNT, CHOICES_PER_QUE, WHITE_RATIO_PER_CHOICE, MAYBE_MULTI_CHOICE_THRESHOLD
+    CHOICE_COL_COUNT, CHOICES_PER_QUE, WHITE_RATIO_PER_CHOICE, MAYBE_MULTI_CHOICE_THRESHOLD, CHOICE_CNT_COUNT
 
 
 def get_corner_node_list(poly_node_list):
@@ -144,10 +146,14 @@ def get_max_area_cnt(img):
 def get_ans(ans_img, question_cnts):
     # 选项个数加上题号
     interval = CHOICES_PER_QUE + 1
+    my_score = 0
+
+    items_per_row = CHOICE_COL_COUNT / (CHOICES_PER_QUE + 1)
+
     for q, i in enumerate(np.arange(0, len(question_cnts), CHOICE_COL_COUNT)):
         # 从左到右为当前题目的气泡轮廓排序，然后初始化被涂画的气泡变量
         cnts = contours.sort_contours(question_cnts[i:i + CHOICE_COL_COUNT])[1]
-        for k in range(3):
+        for k in range(items_per_row):
             print '======================================='
             percent_list = []
             for j, c in enumerate(cnts[1 + k * interval:interval + k * interval]):
@@ -166,6 +172,45 @@ def get_ans(ans_img, question_cnts):
                 print u'第%s排第%s列的作答：可能多涂了选项' % choice_pos
                 print u"第%s排第%s列的作答：%s" % choice_pos_n_ans
             elif percent_list[0]['percent'] < WHITE_RATIO_PER_CHOICE:
+                # key = (percent_list[0]['row'] - 1) * 3 + percent_list[0]['col']
+                # my_score += 1 if score.get(key) == percent_list[0]['choice'] else 0
+                # print 1 if score.get(key) == percent_list[0]['choice'] else 0
                 print u"第%s排第%s列的作答：%s" % choice_pos_n_ans
             else:
                 print u"第%s排第%s列的作答：可能没有填涂" % choice_pos
+    print '=====总分========'
+    print my_score
+
+
+def get_left_right(cnts):
+    sort_res = contours.sort_contours(cnts, method="top-to-bottom")
+    cents_pos = sort_res[1]
+    que_cnts = sort_res[0]
+    num = len(cents_pos) - CHOICE_COL_COUNT + 1
+    dt = {}
+    for i in range(num):
+        distance = 0
+        for j in range(i, i + CHOICE_COL_COUNT - 1):
+            distance += cents_pos[j + 1][1] - cents_pos[j][1]
+        dt[distance] = cents_pos[i:i + CHOICE_COL_COUNT]
+    keys = dt.keys()
+    w = sorted(dt[min(keys)], key=lambda x: x[0])
+    lt, rt = w[0][0] - 5, w[-1][0] + 5
+    for i, c in enumerate(cents_pos):
+        if c[0] < lt or c[0] > rt:
+            que_cnts.pop(i)
+
+
+def get_top_bottom(cnts):
+    cents_pos = contours.sort_contours(cnts, method="left-to-right")[1]
+    choice_row_count = int(math.ceil(CHOICE_CNT_COUNT * 1.0 / CHOICE_COL_COUNT))
+    num = len(cents_pos) - choice_row_count + 1
+    dt = {}
+    for i in range(num):
+        distance = 0
+        for j in range(i, i + choice_row_count - 1):
+            distance += cents_pos[j + 1][1] - cents_pos[j][1]
+        dt[distance] = cents_pos[i:i + choice_row_count]
+    keys = dt.keys()
+    w = sorted(dt[min(keys)], key=lambda x: x[0])
+    return w[0] - 5, w[-1] + 5
