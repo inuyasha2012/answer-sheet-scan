@@ -10,7 +10,7 @@ while True:
     frame = cv2.resize(
         frame,
         # (int(round(0.7667 * width)), int(round(0.765625 * height))),*
-        (800, 600),
+        (600, 500),
         interpolation=cv2.INTER_CUBIC
     )
     try:

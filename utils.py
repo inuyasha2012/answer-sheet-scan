@@ -143,26 +143,28 @@ def get_max_area_cnt(img):
     return cnt
 
 
-def get_ans(ans_img, question_cnts):
+def get_ans(ans_img, rows):
     # 选项个数加上题号
-    interval = CHOICES_PER_QUE + 1
+    interval = get_item_interval()
     my_score = 0
 
-    items_per_row = CHOICE_COL_COUNT / (CHOICES_PER_QUE + 1)
+    items_per_row = get_items_per_row()
 
-    for q, i in enumerate(np.arange(0, len(question_cnts), CHOICE_COL_COUNT)):
+    for i, row in enumerate(rows):
         # 从左到右为当前题目的气泡轮廓排序，然后初始化被涂画的气泡变量
-        cnts = contours.sort_contours(question_cnts[i:i + CHOICE_COL_COUNT])[1]
         for k in range(items_per_row):
             print '======================================='
             percent_list = []
-            for j, c in enumerate(cnts[1 + k * interval:interval + k * interval]):
-                # 获得选项框的区域
-                new = ans_img[c[1]:(c[1] + c[3]), c[0]:(c[0] + c[2])]
-                # 计算白色像素个数和所占百分比
-                white_count = np.count_nonzero(new)
-                percent = white_count * 1.0 / new.size
-                percent_list.append({'col': k + 1, 'row': q + 1, 'percent': percent, 'choice': CHOICES[j]})
+            for j, c in enumerate(row[1 + k * interval:interval + k * interval]):
+                try:
+                    # 获得选项框的区域
+                    new = ans_img[c[1]:(c[1] + c[3]), c[0]:(c[0] + c[2])]
+                    # 计算白色像素个数和所占百分比
+                    white_count = np.count_nonzero(new)
+                    percent = white_count * 1.0 / new.size
+                except IndexError:
+                    percent = 1
+                percent_list.append({'col': k + 1, 'row': i + 1, 'percent': percent, 'choice': CHOICES[j]})
 
             percent_list.sort(key=lambda x: x['percent'])
             choice_pos_n_ans = (percent_list[0]['row'], percent_list[0]['col'], percent_list[0]['choice'])
@@ -182,10 +184,36 @@ def get_ans(ans_img, question_cnts):
     print my_score
 
 
+def get_items_per_row():
+    items_per_row = CHOICE_COL_COUNT / (CHOICES_PER_QUE + 1)
+    return items_per_row
+
+
+def get_item_interval():
+    interval = CHOICES_PER_QUE + 1
+    return interval
+
+
+def delete_rect(cents_pos, que_cnts):
+    count = 0
+    for i, c in enumerate(cents_pos):
+        ratio = 1.0 * c[2] / c[3]
+        if 0.5 > ratio  or ratio > 2:
+            que_cnts.pop(i - count)
+            count += 1
+    return que_cnts
+
+
 def get_left_right(cnts):
     sort_res = contours.sort_contours(cnts, method="top-to-bottom")
     cents_pos = sort_res[1]
-    que_cnts = sort_res[0]
+    que_cnts = list(sort_res[0])
+    que_cnts = delete_rect(cents_pos, que_cnts)
+
+    sort_res = contours.sort_contours(que_cnts, method="top-to-bottom")
+    cents_pos = sort_res[1]
+    que_cnts = list(sort_res[0])
+
     num = len(cents_pos) - CHOICE_COL_COUNT + 1
     dt = {}
     for i in range(num):
@@ -196,21 +224,130 @@ def get_left_right(cnts):
     keys = dt.keys()
     w = sorted(dt[min(keys)], key=lambda x: x[0])
     lt, rt = w[0][0] - 5, w[-1][0] + 5
+    count = 0
     for i, c in enumerate(cents_pos):
         if c[0] < lt or c[0] > rt:
-            que_cnts.pop(i)
+            que_cnts.pop(i - count)
+            count += 1
+    return que_cnts
 
 
 def get_top_bottom(cnts):
-    cents_pos = contours.sort_contours(cnts, method="left-to-right")[1]
-    choice_row_count = int(math.ceil(CHOICE_CNT_COUNT * 1.0 / CHOICE_COL_COUNT))
+    sort_res = contours.sort_contours(cnts, method="left-to-right")
+    cents_pos = sort_res[1]
+    que_cnts = list(sort_res[0])
+    choice_row_count = get_choice_row_count()
     num = len(cents_pos) - choice_row_count + 1
     dt = {}
     for i in range(num):
         distance = 0
         for j in range(i, i + choice_row_count - 1):
-            distance += cents_pos[j + 1][1] - cents_pos[j][1]
+            distance += cents_pos[j + 1][0] - cents_pos[j][0]
         dt[distance] = cents_pos[i:i + choice_row_count]
     keys = dt.keys()
-    w = sorted(dt[min(keys)], key=lambda x: x[0])
-    return w[0] - 5, w[-1] + 5
+    w = sorted(dt[min(keys)], key=lambda x: x[1])
+    top, bottom = w[0][1] - 5, w[-1][1] + 5
+    count = 0
+    for i, c in enumerate(cents_pos):
+        if c[1] < top or c[1] > bottom:
+            que_cnts.pop(i - count)
+            count += 1
+    return que_cnts
+
+
+def get_choice_row_count():
+    choice_row_count = int(math.ceil(CHOICE_CNT_COUNT * 1.0 / CHOICE_COL_COUNT))
+    return choice_row_count
+
+
+def sort_by_row(cnts_pos):
+    choice_row_count = get_choice_row_count()
+    count = 0
+    rows = []
+    for i in range(choice_row_count):
+        cols = cnts_pos[i * CHOICE_COL_COUNT - count:(i + 1) * CHOICE_COL_COUNT - count]
+        threshold = _std_plus_mean(cols)
+        for col in cols[::-1]:
+            if col[1] > threshold:
+                cols.pop()
+                count += 1
+            else:
+                break
+        rows.append(cols)
+
+    insert_no_full_row(rows)
+
+    return rows
+
+
+def insert_no_full_row(rows):
+    full_row_list, not_full_row_list = sep_full_n_no_full_choice_rows(rows)
+    low_up_dt = _get_choices_low_up(full_row_list)
+    for row in not_full_row_list:
+        miss_size = CHOICE_COL_COUNT - len(row)
+        for i, node in enumerate(row):
+            if not (low_up_dt[i][1] > node[0] > low_up_dt[i][0]):
+                row.insert(i, 'null')
+                miss_size -= 1
+            if not miss_size:
+                break
+
+
+def sep_full_n_no_full_choice_rows(rows):
+    _full_row_list = []
+    _not_full_row_list = []
+    for row in rows:
+        if len(row) == CHOICE_COL_COUNT:
+            row.sort(key=lambda x: x[0])
+            _full_row_list.append(row)
+        else:
+            row.sort(key=lambda x: x[0])
+            _not_full_row_list.append(row)
+    return _full_row_list, _not_full_row_list
+
+
+def _get_choices_low_up(rows):
+    _dt = _get_item_choices_x(rows)
+    dt = _get_items_choice_low_up(_dt)
+    return dt
+
+
+def _get_item_choices_x(rows):
+    dt = {}
+    for row in rows:
+        for i in range(CHOICE_COL_COUNT):
+            try:
+                dt[i].append(row[i][0])
+            except (KeyError, AttributeError):
+                dt[i] = [row[i][0]]
+    return dt
+
+
+def _get_items_choice_low_up(rows_dt):
+    dt = {}
+    for key in rows_dt.keys():
+        choices_x = rows_dt[key]
+        dt[key] = _std_plus_low_up_mean(choices_x)
+    return dt
+
+
+def _std_plus_mean(cols):
+    nums = 0
+    square_nums = 0
+    for col in cols:
+        nums += col[1]
+        square_nums += col[1] ** 2
+    mean = nums / len(cols)
+    std = (square_nums / len(cols) - mean ** 2) ** 0.5
+    return mean + 1.7 * std
+
+
+def _std_plus_low_up_mean(nums):
+    sums = 0.0
+    squares = 0.0
+    for num in nums:
+        sums += num
+        squares += num ** 2
+    mean = sums / len(nums)
+    std = (squares / len(nums) - mean ** 2) ** 0.5
+    return mean - 3 * std, mean + 3 * std

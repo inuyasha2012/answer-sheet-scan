@@ -5,10 +5,10 @@ import numpy as np
 CHOICES = "ABCDE"
 
 # 一行选项+题号列数，例如一行有3题，一题4个选项，所以总共有3*4+3个列
-CHOICE_COL_COUNT = 24
+CHOICE_COL_COUNT = 20
 
 # 每题题选项数
-CHOICES_PER_QUE = 5
+CHOICES_PER_QUE = 4
 
 # 每个选项框里面白色点所占比例阈值，小于则说明该选项框可能被填涂
 WHITE_RATIO_PER_CHOICE = 0.84
@@ -51,7 +51,7 @@ CHOICE_IMG_KERNEL = np.ones((2, 2), np.uint8)
 CHOICE_MAX_AREA = 400
 
 # 总共选项框 + 题号的个数，例如一行3题，总共20列，所以有3 * 20 * 4 + 3 * 20
-CHOICE_CNT_COUNT = 234
+CHOICE_CNT_COUNT = 250
 
 # 调整亮度的竖向分块数目
 PROCESS_BRIGHT_COLS = 18
