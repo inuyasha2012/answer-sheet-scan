@@ -264,20 +264,74 @@ def sort_by_row(cnts_pos):
     choice_row_count = get_choice_row_count()
     count = 0
     rows = []
+    threshold = get_min_row_interval(cnts_pos)
     for i in range(choice_row_count):
         cols = cnts_pos[i * CHOICE_COL_COUNT - count:(i + 1) * CHOICE_COL_COUNT - count]
-        threshold = _std_plus_mean(cols)
-        for col in cols[::-1]:
-            if col[1] > threshold:
-                cols.pop()
-                count += 1
+        # threshold = _std_plus_mean(cols)
+        temp_row = [cols[0]]
+        for j, col in enumerate(cols[1:]):
+            if col[1] - cols[j - 1][1] < threshold:
+                temp_row.append(col)
             else:
                 break
-        rows.append(cols)
+        count += CHOICE_COL_COUNT - len(temp_row)
+        temp_row.sort(key=lambda x: x[0])
+        rows.append(temp_row)
 
-    insert_no_full_row(rows)
+    # insert_no_full_row(rows)
 
     return rows
+
+
+def sort_by_col(cnts_pos):
+    # TODO
+    cnts_pos.sort(key=lambda x: x[0])
+    choice_row_count = get_choice_row_count()
+    count = 0
+    cols = []
+    threshold = get_min_col_interval(cnts_pos)
+    for i in range(CHOICE_COL_COUNT):
+        rows = cnts_pos[i * choice_row_count - count:(i + 1) * choice_row_count - count]
+        # threshold = _std_plus_mean(cols)
+        temp_col = [rows[0]]
+        for j, row in enumerate(rows[1:]):
+            if row[0] - rows[j - 1][0] < threshold:
+                temp_col.append(row)
+            else:
+                break
+        count += choice_row_count - len(temp_col)
+        temp_col.sort(key=lambda x: x[1])
+        cols.append(temp_col)
+    return cols
+
+
+def insert_null_2_rows(cols, rows):
+    for i, row in enumerate(rows):
+        for j, col in enumerate(cols):
+            try:
+                if row[j] != col[0]:
+                    row.insert(j, 'null')
+                else:
+                    col.pop(0)
+            except IndexError:
+                row.insert(j, 'null')
+
+
+def get_min_row_interval(cnts_pos):
+    choice_row_count = get_choice_row_count()
+    rows_interval = []
+    for i, c in enumerate(cnts_pos[1:]):
+        rows_interval.append(c[1] - cnts_pos[i][1])
+    rows_interval.sort(reverse=True)
+    return min(rows_interval[:choice_row_count - 1])
+
+
+def get_min_col_interval(cnts_pos):
+    cols_interval = []
+    for i, c in enumerate(cnts_pos[1:]):
+        cols_interval.append(c[0] - cnts_pos[i][0])
+    cols_interval.sort(reverse=True)
+    return min(cols_interval[:CHOICE_COL_COUNT - 1])
 
 
 def insert_no_full_row(rows):
@@ -286,7 +340,7 @@ def insert_no_full_row(rows):
     for row in not_full_row_list:
         miss_size = CHOICE_COL_COUNT - len(row)
         for i, node in enumerate(row):
-            if not (low_up_dt[i][1] > node[0] > low_up_dt[i][0]):
+            if not (low_up_dt[i][1] >= node[0] >= low_up_dt[i][0]):
                 row.insert(i, 'null')
                 miss_size -= 1
             if not miss_size:
@@ -339,7 +393,7 @@ def _std_plus_mean(cols):
         square_nums += col[1] ** 2
     mean = nums / len(cols)
     std = (square_nums / len(cols) - mean ** 2) ** 0.5
-    return mean + 1.7 * std
+    return round(mean + 1.5 * std, 0)
 
 
 def _std_plus_low_up_mean(nums):

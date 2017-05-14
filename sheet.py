@@ -5,9 +5,9 @@ from imutils import contours
 from e import ContourCountError, ContourPerimeterSizeError, PolyNodeCountError
 from settings import ANS_IMG_THRESHOLD, CNT_PERIMETER_THRESHOLD, CHOICE_IMG_THRESHOLD, ANS_IMG_DILATE_ITERATIONS, \
     ANS_IMG_ERODE_ITERATIONS, CHOICE_IMG_DILATE_ITERATIONS, CHOICE_IMG_ERODE_ITERATIONS, CHOICE_MAX_AREA, \
-    CHOICE_CNT_COUNT, ANS_IMG_KERNEL, CHOICE_IMG_KERNEL
+    CHOICE_CNT_COUNT, ANS_IMG_KERNEL, CHOICE_IMG_KERNEL, CHOICE_MIN_AREA
 from utils import detect_cnt_again, get_init_process_img, get_bright_process_img, get_max_area_cnt, get_ans, \
-    get_left_right, get_top_bottom, sort_by_row
+    get_left_right, get_top_bottom, sort_by_row, sort_by_col, insert_null_2_rows
 
 
 def get_answer_from_sheet(base_img):
@@ -76,7 +76,7 @@ def get_answer_from_sheet(base_img):
     temp1_ans_img = ans_img.copy()
     for i, c in enumerate(cnts):
         # 如果面积小于某值，则认为这个轮廓是选项框或题号
-        if 100 < cv2.contourArea(c) < CHOICE_MAX_AREA:
+        if CHOICE_MIN_AREA < cv2.contourArea(c) < CHOICE_MAX_AREA:
             cv2.drawContours(temp1_ans_img, cnts, i, (0, 0, 0), 1)
             question_cnts.append(c)
 
@@ -104,5 +104,7 @@ def get_answer_from_sheet(base_img):
     # 对轮廓之上而下的排序
     question_cnts, cnts_pos = contours.sort_contours(question_cnts, method="top-to-bottom")
     rows = sort_by_row(list(cnts_pos))
+    cols = sort_by_col(list(cnts_pos))
+    insert_null_2_rows(cols, rows)
     # 获得答案
     get_ans(ans_img, rows)
