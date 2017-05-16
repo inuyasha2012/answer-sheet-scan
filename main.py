@@ -10,13 +10,14 @@ while True:
     frame = cv2.resize(
         frame,
         # (int(round(0.7667 * width)), int(round(0.765625 * height))),*
-        (600, 500),
+        (800, 600),
         interpolation=cv2.INTER_CUBIC
     )
     try:
         get_answer_from_sheet(frame)
         break
     except Exception as e:
+        # print e
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
         continue

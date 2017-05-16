@@ -6,7 +6,7 @@ from imutils import auto_canny, contours
 from e import PolyNodeCountError
 from score import score
 from settings import CHOICES, SHEET_AREA_MIN_RATIO, PROCESS_BRIGHT_COLS, PROCESS_BRIGHT_ROWS, BRIGHT_VALUE, \
-    CHOICE_COL_COUNT, CHOICES_PER_QUE, WHITE_RATIO_PER_CHOICE, MAYBE_MULTI_CHOICE_THRESHOLD, CHOICE_CNT_COUNT
+    CHOICE_COL_COUNT, CHOICES_PER_QUE, WHITE_RATIO_PER_CHOICE, MAYBE_MULTI_CHOICE_THRESHOLD, CHOICE_CNT_COUNT, test_ans
 
 
 def get_corner_node_list(poly_node_list):
@@ -117,17 +117,17 @@ def get_bright_process_img(img):
     :param img: ndarray
     :return: ndarray
     """
-    for y in range(PROCESS_BRIGHT_COLS):
-        for x in range(PROCESS_BRIGHT_ROWS):
-            col_low = 1.0 * img.shape[0] / PROCESS_BRIGHT_COLS * y
-            col_high = 1.0 * img.shape[0] / PROCESS_BRIGHT_COLS * (y + 1)
-            row_low = 1.0 * img.shape[1] / PROCESS_BRIGHT_ROWS * x
-            row_high = 1.0 * img.shape[1] / PROCESS_BRIGHT_ROWS * (x + 1)
-            roi = img[int(col_low):int(col_high), int(row_low): int(row_high)]
-            mean = cv2.mean(roi)
-            for each_roi in roi:
-                for each_p in each_roi:
-                    each_p += BRIGHT_VALUE - np.array(mean, dtype=np.uint8)[:3]
+    # for y in range(PROCESS_BRIGHT_COLS):
+    #     for x in range(PROCESS_BRIGHT_ROWS):
+    #         col_low = 1.0 * img.shape[0] / PROCESS_BRIGHT_COLS * y
+    #         col_high = 1.0 * img.shape[0] / PROCESS_BRIGHT_COLS * (y + 1)
+    #         row_low = 1.0 * img.shape[1] / PROCESS_BRIGHT_ROWS * x
+    #         row_high = 1.0 * img.shape[1] / PROCESS_BRIGHT_ROWS * (x + 1)
+    #         roi = img[int(col_low):int(col_high), int(row_low): int(row_high)]
+    #         mean = cv2.mean(roi)
+    #         for each_roi in roi:
+    #             for each_p in each_roi:
+    #                 each_p += BRIGHT_VALUE - np.array(mean, dtype=np.uint8)[:3]
     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     return img
 
@@ -149,7 +149,7 @@ def get_ans(ans_img, rows):
     my_score = 0
 
     items_per_row = get_items_per_row()
-
+    ans = []
     for i, row in enumerate(rows):
         # 从左到右为当前题目的气泡轮廓排序，然后初始化被涂画的气泡变量
         for k in range(items_per_row):
@@ -173,15 +173,31 @@ def get_ans(ans_img, rows):
                             abs(percent_list[1]['percent'] - percent_list[0]['percent']) < MAYBE_MULTI_CHOICE_THRESHOLD:
                 print u'第%s排第%s列的作答：可能多涂了选项' % choice_pos
                 print u"第%s排第%s列的作答：%s" % choice_pos_n_ans
+                ans.append(percent_list[0]['choice'])
             elif percent_list[0]['percent'] < WHITE_RATIO_PER_CHOICE:
                 # key = (percent_list[0]['row'] - 1) * 3 + percent_list[0]['col']
                 # my_score += 1 if score.get(key) == percent_list[0]['choice'] else 0
                 # print 1 if score.get(key) == percent_list[0]['choice'] else 0
                 print u"第%s排第%s列的作答：%s" % choice_pos_n_ans
+                print percent_list[0]['percent']
+                ans.append(percent_list[0]['choice'])
             else:
                 print u"第%s排第%s列的作答：可能没有填涂" % choice_pos
+                print percent_list[0]['percent']
+                ans.append(None)
     print '=====总分========'
-    print my_score
+    return rows, test_is_eq(ans, test_ans)
+
+
+def test_is_eq(ans, test_ans):
+    count = 0
+    for i, a in enumerate(ans):
+        if a != test_ans[i]:
+            print i / 4 + 1, i % 4, a
+            count += 1
+    if count:
+        return False, count
+    return True, count
 
 
 def get_items_per_row():
@@ -197,8 +213,9 @@ def get_item_interval():
 def delete_rect(cents_pos, que_cnts):
     count = 0
     for i, c in enumerate(cents_pos):
+        area_ration = cv2.contourArea(que_cnts[i - count]) / (c[2] * c[3])
         ratio = 1.0 * c[2] / c[3]
-        if 0.5 > ratio  or ratio > 2:
+        if 0.5 > ratio or ratio > 2 or area_ration < 0.5:
             que_cnts.pop(i - count)
             count += 1
     return que_cnts
@@ -222,8 +239,11 @@ def get_left_right(cnts):
             distance += cents_pos[j + 1][1] - cents_pos[j][1]
         dt[distance] = cents_pos[i:i + CHOICE_COL_COUNT]
     keys = dt.keys()
-    w = sorted(dt[min(keys)], key=lambda x: x[0])
-    lt, rt = w[0][0] - 5, w[-1][0] + 5
+    key_min = min(keys)
+    if key_min >= 10:
+        raise
+    w = sorted(dt[key_min], key=lambda x: x[0])
+    lt, rt = w[0][0] - w[0][2] * 0.5, w[-1][0] + w[-1][2] * 0.5
     count = 0
     for i, c in enumerate(cents_pos):
         if c[0] < lt or c[0] > rt:
@@ -245,8 +265,11 @@ def get_top_bottom(cnts):
             distance += cents_pos[j + 1][0] - cents_pos[j][0]
         dt[distance] = cents_pos[i:i + choice_row_count]
     keys = dt.keys()
-    w = sorted(dt[min(keys)], key=lambda x: x[1])
-    top, bottom = w[0][1] - 5, w[-1][1] + 5
+    key_min = min(keys)
+    if key_min >= 10:
+        raise
+    w = sorted(dt[key_min], key=lambda x: x[1])
+    top, bottom = w[0][1] - w[0][3] * 0.5, w[-1][1] + w[-1][3] * 0.5
     count = 0
     for i, c in enumerate(cents_pos):
         if c[1] < top or c[1] > bottom:
@@ -279,7 +302,7 @@ def sort_by_row(cnts_pos):
         rows.append(temp_row)
 
     # insert_no_full_row(rows)
-
+    ck_full_rows_size(rows)
     return rows
 
 
@@ -302,20 +325,24 @@ def sort_by_col(cnts_pos):
         count += choice_row_count - len(temp_col)
         temp_col.sort(key=lambda x: x[1])
         cols.append(temp_col)
+    ck_full_cols_size(cols)
     return cols
 
 
 def insert_null_2_rows(cols, rows):
+    temp = {}
     for i, row in enumerate(rows):
         for j, col in enumerate(cols):
             try:
                 if row[j] != col[0]:
-                    row.insert(j, 'null')
+                    row.insert(j, (col[1][0], row[j][1], col[1][2], row[j][3]))
                 else:
-                    col.pop(0)
+                    temp[j] = col.pop(0)
             except IndexError:
-                row.insert(j, 'null')
-
+                try:
+                    row.insert(j, (col[1][0], row[j - 1][1], col[1][2], row[j - 1][3]))
+                except IndexError:
+                    row.insert(j, (temp[j][0], row[j - 1][1], temp[j][2], row[j - 1][3]))
 
 def get_min_row_interval(cnts_pos):
     choice_row_count = get_choice_row_count()
@@ -345,6 +372,25 @@ def insert_no_full_row(rows):
                 miss_size -= 1
             if not miss_size:
                 break
+
+
+def ck_full_rows_size(rows):
+    count = 0
+    for row in rows:
+        if len(row) == CHOICE_COL_COUNT:
+            count += 1
+    if count <= 4:
+        raise
+
+
+def ck_full_cols_size(rows):
+    choice_row_count = get_choice_row_count()
+    count = 0
+    for row in rows:
+        if len(row) == choice_row_count:
+            count += 1
+    if count <= 4:
+        raise
 
 
 def sep_full_n_no_full_choice_rows(rows):

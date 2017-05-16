@@ -51,17 +51,19 @@ def get_answer_from_sheet(base_img):
     # cv2.waitKey(0)
 
     # 通过二值化和膨胀腐蚀获得填涂区域
-    ret, ans_img = cv2.threshold(processed_img, ANS_IMG_THRESHOLD[0], ANS_IMG_THRESHOLD[1], cv2.THRESH_BINARY_INV)
+    # ret, ans_img = cv2.threshold(processed_img, ANS_IMG_THRESHOLD[0], ANS_IMG_THRESHOLD[1], cv2.THRESH_BINARY_INV)
+    ans_img = cv2.adaptiveThreshold(processed_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 51, 40)
     ans_img = cv2.dilate(ans_img, ANS_IMG_KERNEL, iterations=ANS_IMG_DILATE_ITERATIONS)
     ans_img = cv2.erode(ans_img, ANS_IMG_KERNEL, iterations=ANS_IMG_ERODE_ITERATIONS)
     ret, ans_img = cv2.threshold(ans_img, ANS_IMG_THRESHOLD[0], ANS_IMG_THRESHOLD[1], cv2.THRESH_BINARY_INV)
 
-    cv2.imshow('temp', ans_img)
-    cv2.waitKey(0)
+    # cv2.imshow('temp', ans_img)
+    # cv2.waitKey(0)
 
     # 通过二值化和膨胀腐蚀获得选项框区域
-    ret, choice_img = cv2.threshold(processed_img, CHOICE_IMG_THRESHOLD[0], CHOICE_IMG_THRESHOLD[1],
-                                    cv2.THRESH_BINARY_INV)
+    choice_img = cv2.adaptiveThreshold(processed_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 51, 10)
+    # ret, choice_img = cv2.threshold(processed_img, CHOICE_IMG_THRESHOLD[0], CHOICE_IMG_THRESHOLD[1],
+    #                                 cv2.THRESH_BINARY_INV)
     for i in range(1):
         choice_img = cv2.dilate(choice_img, CHOICE_IMG_KERNEL, iterations=CHOICE_IMG_DILATE_ITERATIONS)
         choice_img = cv2.erode(choice_img, CHOICE_IMG_KERNEL, iterations=CHOICE_IMG_ERODE_ITERATIONS)
@@ -80,8 +82,8 @@ def get_answer_from_sheet(base_img):
             cv2.drawContours(temp1_ans_img, cnts, i, (0, 0, 0), 1)
             question_cnts.append(c)
 
-    cv2.imshow('temp', temp1_ans_img)
-    cv2.waitKey(0)
+    # cv2.imshow('temp', temp1_ans_img)
+    # cv2.waitKey(0)
 
     question_cnts = get_left_right(question_cnts)
     question_cnts = get_top_bottom(question_cnts)
@@ -90,8 +92,8 @@ def get_answer_from_sheet(base_img):
     for i in range(len(question_cnts)):
         cv2.drawContours(temp2_ans_img, question_cnts, i, (0, 0, 0), 1)
 
-    cv2.imshow('temp', temp2_ans_img)
-    cv2.waitKey(0)
+    # cv2.imshow('temp', temp2_ans_img)
+    # cv2.waitKey(0)
 
     # 如果轮廓小于特定值，重新扫描
     # TODO 运用统计分析排除垃圾轮廓
@@ -105,6 +107,16 @@ def get_answer_from_sheet(base_img):
     question_cnts, cnts_pos = contours.sort_contours(question_cnts, method="top-to-bottom")
     rows = sort_by_row(list(cnts_pos))
     cols = sort_by_col(list(cnts_pos))
+
+    # cv2.imshow('temp', temp2_ans_img)
+    # cv2.waitKey(0)
+
     insert_null_2_rows(cols, rows)
     # 获得答案
-    get_ans(ans_img, rows)
+    rows, res = get_ans(ans_img, rows)
+    if not res[0]:
+        print res[1]
+        cv2.imshow('temp', temp2_ans_img)
+        cv2.waitKey(0)
+    else:
+        print res
