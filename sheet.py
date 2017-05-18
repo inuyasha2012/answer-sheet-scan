@@ -6,8 +6,9 @@ from e import ContourCountError, ContourPerimeterSizeError, PolyNodeCountError
 from settings import ANS_IMG_THRESHOLD, CNT_PERIMETER_THRESHOLD, CHOICE_IMG_THRESHOLD, ANS_IMG_DILATE_ITERATIONS, \
     ANS_IMG_ERODE_ITERATIONS, CHOICE_IMG_DILATE_ITERATIONS, CHOICE_IMG_ERODE_ITERATIONS, CHOICE_MAX_AREA, \
     CHOICE_CNT_COUNT, ANS_IMG_KERNEL, CHOICE_IMG_KERNEL, CHOICE_MIN_AREA
-from utils import detect_cnt_again, get_init_process_img, get_bright_process_img, get_max_area_cnt, get_ans, \
-    get_left_right, get_top_bottom, sort_by_row, sort_by_col, insert_null_2_rows
+from utils import detect_cnt_again, get_init_process_img, get_max_area_cnt, get_ans, \
+    get_left_right, get_top_bottom, sort_by_row, sort_by_col, insert_null_2_rows, get_vertical_projective, \
+    get_h_projective
 
 
 def get_answer_from_sheet(base_img):
@@ -45,14 +46,14 @@ def get_answer_from_sheet(base_img):
     # cv2.waitKey(0)
 
     # 调整图片的亮度
-    processed_img = get_bright_process_img(processed_img)
-
+    processed_img = cv2.cvtColor(processed_img, cv2.COLOR_BGR2GRAY)
+    processed_img = cv2.GaussianBlur( processed_img, (9, 9), 0)
     # cv2.imshow('temp', processed_img)
     # cv2.waitKey(0)
 
     # 通过二值化和膨胀腐蚀获得填涂区域
     # ret, ans_img = cv2.threshold(processed_img, ANS_IMG_THRESHOLD[0], ANS_IMG_THRESHOLD[1], cv2.THRESH_BINARY_INV)
-    ans_img = cv2.adaptiveThreshold(processed_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 51, 40)
+    ans_img = cv2.adaptiveThreshold(processed_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 41, 35)
     ans_img = cv2.dilate(ans_img, ANS_IMG_KERNEL, iterations=ANS_IMG_DILATE_ITERATIONS)
     ans_img = cv2.erode(ans_img, ANS_IMG_KERNEL, iterations=ANS_IMG_ERODE_ITERATIONS)
     ret, ans_img = cv2.threshold(ans_img, ANS_IMG_THRESHOLD[0], ANS_IMG_THRESHOLD[1], cv2.THRESH_BINARY_INV)
@@ -64,10 +65,17 @@ def get_answer_from_sheet(base_img):
     choice_img = cv2.adaptiveThreshold(processed_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 51, 10)
     # ret, choice_img = cv2.threshold(processed_img, CHOICE_IMG_THRESHOLD[0], CHOICE_IMG_THRESHOLD[1],
     #                                 cv2.THRESH_BINARY_INV)
+    # cv2.imshow('temp', choice_img)
+    # cv2.waitKey(0)
+    # get_vertical_projective(choice_img)
+    # get_h_projective(choice_img)
+
     for i in range(1):
         choice_img = cv2.dilate(choice_img, CHOICE_IMG_KERNEL, iterations=CHOICE_IMG_DILATE_ITERATIONS)
         choice_img = cv2.erode(choice_img, CHOICE_IMG_KERNEL, iterations=CHOICE_IMG_ERODE_ITERATIONS)
 
+    # get_vertical_projective(choice_img)
+    # get_h_projective(choice_img)
     # cv2.imshow('temp', choice_img)
     # cv2.waitKey(0)
 
@@ -116,7 +124,8 @@ def get_answer_from_sheet(base_img):
     rows, res = get_ans(ans_img, rows)
     if not res[0]:
         print res[1]
-        cv2.imshow('temp', temp2_ans_img)
+        cv2.imshow('temp1', temp2_ans_img)
         cv2.waitKey(0)
+        print 'end'
     else:
         print res

@@ -1,12 +1,15 @@
 # coding=utf-8
 import math
+from collections import Counter
+
 import numpy as np
 import cv2
 from imutils import auto_canny, contours
 from e import PolyNodeCountError
 from score import score
 from settings import CHOICES, SHEET_AREA_MIN_RATIO, PROCESS_BRIGHT_COLS, PROCESS_BRIGHT_ROWS, BRIGHT_VALUE, \
-    CHOICE_COL_COUNT, CHOICES_PER_QUE, WHITE_RATIO_PER_CHOICE, MAYBE_MULTI_CHOICE_THRESHOLD, CHOICE_CNT_COUNT, test_ans
+    CHOICE_COL_COUNT, CHOICES_PER_QUE, WHITE_RATIO_PER_CHOICE, MAYBE_MULTI_CHOICE_THRESHOLD, CHOICE_CNT_COUNT, test_ans, \
+    ORIENT_CODE
 
 
 def get_corner_node_list(poly_node_list):
@@ -111,27 +114,6 @@ def get_roi_img(base_img, bottom_left, bottom_right, top_left, top_right):
     return roi_img
 
 
-def get_bright_process_img(img):
-    """
-    改变图片的亮度，方便二值化
-    :param img: ndarray
-    :return: ndarray
-    """
-    # for y in range(PROCESS_BRIGHT_COLS):
-    #     for x in range(PROCESS_BRIGHT_ROWS):
-    #         col_low = 1.0 * img.shape[0] / PROCESS_BRIGHT_COLS * y
-    #         col_high = 1.0 * img.shape[0] / PROCESS_BRIGHT_COLS * (y + 1)
-    #         row_low = 1.0 * img.shape[1] / PROCESS_BRIGHT_ROWS * x
-    #         row_high = 1.0 * img.shape[1] / PROCESS_BRIGHT_ROWS * (x + 1)
-    #         roi = img[int(col_low):int(col_high), int(row_low): int(row_high)]
-    #         mean = cv2.mean(roi)
-    #         for each_roi in roi:
-    #             for each_p in each_roi:
-    #                 each_p += BRIGHT_VALUE - np.array(mean, dtype=np.uint8)[:3]
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    return img
-
-
 def get_max_area_cnt(img):
     """
     获得图片里面最大面积的轮廓
@@ -167,24 +149,31 @@ def get_ans(ans_img, rows):
                 percent_list.append({'col': k + 1, 'row': i + 1, 'percent': percent, 'choice': CHOICES[j]})
 
             percent_list.sort(key=lambda x: x['percent'])
-            choice_pos_n_ans = (percent_list[0]['row'], percent_list[0]['col'], percent_list[0]['choice'])
+            choice_pos_n_ans = [percent_list[0]['row'], percent_list[0]['col']]
             choice_pos = (percent_list[0]['row'], percent_list[0]['col'])
-            if percent_list[1]['percent'] < WHITE_RATIO_PER_CHOICE and \
-                            abs(percent_list[1]['percent'] - percent_list[0]['percent']) < MAYBE_MULTI_CHOICE_THRESHOLD:
-                print u'第%s排第%s列的作答：可能多涂了选项' % choice_pos
-                print u"第%s排第%s列的作答：%s" % choice_pos_n_ans
-                ans.append(percent_list[0]['choice'])
-            elif percent_list[0]['percent'] < WHITE_RATIO_PER_CHOICE:
-                # key = (percent_list[0]['row'] - 1) * 3 + percent_list[0]['col']
-                # my_score += 1 if score.get(key) == percent_list[0]['choice'] else 0
-                # print 1 if score.get(key) == percent_list[0]['choice'] else 0
-                print u"第%s排第%s列的作答：%s" % choice_pos_n_ans
-                print percent_list[0]['percent']
-                ans.append(percent_list[0]['choice'])
-            else:
-                print u"第%s排第%s列的作答：可能没有填涂" % choice_pos
-                print percent_list[0]['percent']
-                ans.append(None)
+            # if percent_list[1]['percent'] < 0.6 or (percent_list[1]['percent'] < WHITE_RATIO_PER_CHOICE and \
+            #                 abs(percent_list[1]['percent'] - percent_list[0]['percent']) < MAYBE_MULTI_CHOICE_THRESHOLD):
+            #     print u'第%s排第%s列的作答：可能多涂了选项' % choice_pos
+            #     print u"第%s排第%s列的作答：%s" % choice_pos_n_ans
+            #     ans.append(percent_list[0]['choice'])
+            _ans = ''
+            for percent in percent_list:
+                if percent['percent'] < 0.8:
+                    _ans += percent['choice']
+            ans.append(''.join(sorted(list(_ans))))
+            choice_pos_n_ans.append(''.join(sorted(list(_ans))))
+            print u'第{0}排第{1}列的作答：{2}'.format(*choice_pos_n_ans)
+            # elif percent_list[0]['percent'] < WHITE_RATIO_PER_CHOICE:
+            #     # key = (percent_list[0]['row'] - 1) * 3 + percent_list[0]['col']
+            #     # my_score += 1 if score.get(key) == percent_list[0]['choice'] else 0
+            #     # print 1 if score.get(key) == percent_list[0]['choice'] else 0
+            #     print u"第%s排第%s列的作答：%s" % choice_pos_n_ans
+            #     print percent_list[0]['percent']
+            #     ans.append(percent_list[0]['choice'])
+            # else:
+            #     print u"第%s排第%s列的作答：可能没有填涂" % choice_pos
+            #     print percent_list[0]['percent']
+            #     ans.append(None)
     print '=====总分========'
     return rows, test_is_eq(ans, test_ans)
 
@@ -240,7 +229,7 @@ def get_left_right(cnts):
         dt[distance] = cents_pos[i:i + CHOICE_COL_COUNT]
     keys = dt.keys()
     key_min = min(keys)
-    if key_min >= 10:
+    if key_min >= 40:
         raise
     w = sorted(dt[key_min], key=lambda x: x[0])
     lt, rt = w[0][0] - w[0][2] * 0.5, w[-1][0] + w[-1][2] * 0.5
@@ -315,7 +304,6 @@ def sort_by_col(cnts_pos):
     threshold = get_min_col_interval(cnts_pos)
     for i in range(CHOICE_COL_COUNT):
         rows = cnts_pos[i * choice_row_count - count:(i + 1) * choice_row_count - count]
-        # threshold = _std_plus_mean(cols)
         temp_col = [rows[0]]
         for j, row in enumerate(rows[1:]):
             if row[0] - rows[j - 1][0] < threshold:
@@ -344,6 +332,7 @@ def insert_null_2_rows(cols, rows):
                 except IndexError:
                     row.insert(j, (temp[j][0], row[j - 1][1], temp[j][2], row[j - 1][3]))
 
+
 def get_min_row_interval(cnts_pos):
     choice_row_count = get_choice_row_count()
     rows_interval = []
@@ -361,17 +350,9 @@ def get_min_col_interval(cnts_pos):
     return min(cols_interval[:CHOICE_COL_COUNT - 1])
 
 
-def insert_no_full_row(rows):
-    full_row_list, not_full_row_list = sep_full_n_no_full_choice_rows(rows)
-    low_up_dt = _get_choices_low_up(full_row_list)
-    for row in not_full_row_list:
-        miss_size = CHOICE_COL_COUNT - len(row)
-        for i, node in enumerate(row):
-            if not (low_up_dt[i][1] >= node[0] >= low_up_dt[i][0]):
-                row.insert(i, 'null')
-                miss_size -= 1
-            if not miss_size:
-                break
+def get_min_interval(cnts_pos, orient):
+    idx = ORIENT_CODE[orient]
+    interval_list = []
 
 
 def ck_full_rows_size(rows):
@@ -379,7 +360,7 @@ def ck_full_rows_size(rows):
     for row in rows:
         if len(row) == CHOICE_COL_COUNT:
             count += 1
-    if count <= 4:
+    if count < 1:
         raise
 
 
@@ -389,65 +370,56 @@ def ck_full_cols_size(rows):
     for row in rows:
         if len(row) == choice_row_count:
             count += 1
-    if count <= 4:
+    if count < 1:
         raise
 
 
-def sep_full_n_no_full_choice_rows(rows):
-    _full_row_list = []
-    _not_full_row_list = []
-    for row in rows:
-        if len(row) == CHOICE_COL_COUNT:
-            row.sort(key=lambda x: x[0])
-            _full_row_list.append(row)
-        else:
-            row.sort(key=lambda x: x[0])
-            _not_full_row_list.append(row)
-    return _full_row_list, _not_full_row_list
+def get_vertical_projective(img):
+    w = [0] * img.shape[1]
+    for x in range(img.shape[1]):
+        for y in range(img.shape[0]):
+            t = cv2.cv.Get2D(cv2.cv.fromarray(img), y, x)
+            if t[0] == 255:
+                w[x] += 1
+    show_fuck(img, w)
+    seg(w)
+    return w
 
 
-def _get_choices_low_up(rows):
-    _dt = _get_item_choices_x(rows)
-    dt = _get_items_choice_low_up(_dt)
-    return dt
+def get_h_projective(img):
+    h = [0] * img.shape[0]
+    for y in range(img.shape[0]):
+        for x in range(img.shape[1]):
+            s = cv2.cv.Get2D(cv2.cv.fromarray(img), y, x)
+            if s[0] == 255:
+                h[y] += 1
+    painty = np.zeros(img.shape, np.uint8)
+    painty = painty + 255
+    for y in range(img.shape[0]):
+        for x in range(h[y]):
+            cv2.cv.Set2D(cv2.cv.fromarray(painty), y, x, (0, 0, 0, 0))
+    cv2.imshow('painty', painty)
+    cv2.waitKey(0)
 
 
-def _get_item_choices_x(rows):
-    dt = {}
-    for row in rows:
-        for i in range(CHOICE_COL_COUNT):
-            try:
-                dt[i].append(row[i][0])
-            except (KeyError, AttributeError):
-                dt[i] = [row[i][0]]
-    return dt
+def show_fuck(img, w):
+    paintx = np.zeros(img.shape, np.uint8)
+    paintx = paintx + 255
+    for x in range(img.shape[1]):
+        for y in range(w[x]):
+            # 把为0的像素变成白
+            cv2.cv.Set2D(cv2.cv.fromarray(paintx), y, x, (0, 0, 0, 0))
+
+    # 显示图片
+    cv2.imshow('paintx', paintx)
+    cv2.waitKey(0)
 
 
-def _get_items_choice_low_up(rows_dt):
-    dt = {}
-    for key in rows_dt.keys():
-        choices_x = rows_dt[key]
-        dt[key] = _std_plus_low_up_mean(choices_x)
-    return dt
-
-
-def _std_plus_mean(cols):
-    nums = 0
-    square_nums = 0
-    for col in cols:
-        nums += col[1]
-        square_nums += col[1] ** 2
-    mean = nums / len(cols)
-    std = (square_nums / len(cols) - mean ** 2) ** 0.5
-    return round(mean + 1.5 * std, 0)
-
-
-def _std_plus_low_up_mean(nums):
-    sums = 0.0
-    squares = 0.0
-    for num in nums:
-        sums += num
-        squares += num ** 2
-    mean = sums / len(nums)
-    std = (squares / len(nums) - mean ** 2) ** 0.5
-    return mean - 3 * std, mean + 3 * std
+def seg(w):
+    dt = Counter(w)
+    counts = np.array(dt.values())
+    mean = np.mean(counts)
+    std = np.std(counts)
+    _w = np.array(w)
+    _w[_w <= (mean + std)] =0
+    return _w
