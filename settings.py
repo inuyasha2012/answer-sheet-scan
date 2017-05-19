@@ -5,10 +5,10 @@ import numpy as np
 CHOICES = "ABCDE"
 
 # 一行选项+题号列数，例如一行有3题，一题4个选项，所以总共有3*4+3个列
-CHOICE_COL_COUNT = 12
+CHOICE_COL_COUNT = 18
 
 # 每题题选项数
-CHOICES_PER_QUE = 2
+CHOICES_PER_QUE = 5
 
 # 每个选项框里面白色点所占比例阈值，小于则说明该选项框可能被填涂
 WHITE_RATIO_PER_CHOICE = 0.80
@@ -27,7 +27,7 @@ SHEET_AREA_MIN_RATIO = 0.7
 ANS_IMG_THRESHOLD = (88, 255)
 
 # 识别所涂写区域时的膨胀参数
-ANS_IMG_DILATE_ITERATIONS = 6
+ANS_IMG_DILATE_ITERATIONS = 9
 
 # 识别所涂写区域时的腐蚀参数
 ANS_IMG_ERODE_ITERATIONS = 0
@@ -54,7 +54,7 @@ CHOICE_MAX_AREA = 400
 CHOICE_MIN_AREA = 100
 
 # 总共选项框 + 题号的个数，例如一行3题，总共20列，所以有3 * 20 * 4 + 3 * 20
-CHOICE_CNT_COUNT = 54
+CHOICE_CNT_COUNT = 51* 6
 
 # 调整亮度的竖向分块数目
 PROCESS_BRIGHT_COLS = 18
@@ -65,6 +65,7 @@ PROCESS_BRIGHT_ROWS = 16
 # 调整亮度值
 BRIGHT_VALUE = 120
 
-test_ans = ['A', 'A', 'AB', 'AB', 'B', 'B', 'AB', 'AB', 'A', 'A', 'AB', 'A', 'A', 'B', 'AB', 'A', 'A', 'B', '', '']
+test_ans = ['A', 'AD', 'BD', 'AC', 'B', 'BD', 'A', '', 'AD', 'D', '', '', 'B', 'A', 'A', 'A', 'B', 'B', 'B', 'B', 'A',
+            'B', 'A', 'A', 'A', 'B', 'B', 'B', 'B', 'B', '', '']
 
 ORIENT_CODE = {'col': 1, 'row': 0}

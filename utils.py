@@ -229,7 +229,7 @@ def get_left_right(cnts):
         dt[distance] = cents_pos[i:i + CHOICE_COL_COUNT]
     keys = dt.keys()
     key_min = min(keys)
-    if key_min >= 40:
+    if key_min >= 10:
         raise
     w = sorted(dt[key_min], key=lambda x: x[0])
     lt, rt = w[0][0] - w[0][2] * 0.5, w[-1][0] + w[-1][2] * 0.5
@@ -381,8 +381,8 @@ def get_vertical_projective(img):
             t = cv2.cv.Get2D(cv2.cv.fromarray(img), y, x)
             if t[0] == 255:
                 w[x] += 1
-    show_fuck(img, w)
-    seg(w)
+    # show_fuck(img, w)
+    seg(w, img)
     return w
 
 
@@ -415,11 +415,22 @@ def show_fuck(img, w):
     cv2.waitKey(0)
 
 
-def seg(w):
+def seg(w, img):
     dt = Counter(w)
     counts = np.array(dt.values())
     mean = np.mean(counts)
     std = np.std(counts)
     _w = np.array(w)
-    _w[_w <= (mean + std)] =0
+    _w[_w <= mean + std * 2] =0
+    count = 0
+    for i, _ in enumerate(_w[1:]):
+        if _ > 0 and _w[i] == 0:
+            count += 1
+    if _w[-1] > 0:
+        count -= 1
+    print count
+    if count != 18:
+        show_fuck(img, w)
+        show_fuck(img, _w)
+        print '1'
     return _w
