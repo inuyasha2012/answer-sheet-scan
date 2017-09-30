@@ -5,7 +5,7 @@ import numpy as np
 CHOICES = "ABCDE"
 
 # 一行选项+题号列数，例如一行有3题，一题4个选项，所以总共有3*4+3个列
-CHOICE_COL_COUNT = 18
+CHOICE_COL_COUNT = 24
 
 # 每题题选项数
 CHOICES_PER_QUE = 5
@@ -21,19 +21,25 @@ MAYBE_MULTI_CHOICE_THRESHOLD = 0.07
 CNT_PERIMETER_THRESHOLD = 0.35
 
 # 答题卡框面积阈值
-SHEET_AREA_MIN_RATIO = 0.7
+SHEET_AREA_MIN_RATIO = 0.5
 
 # 识别所涂写区域时的二值化参数
 ANS_IMG_THRESHOLD = (88, 255)
 
 # 识别所涂写区域时的膨胀参数
-ANS_IMG_DILATE_ITERATIONS = 9
+ANS_IMG_DILATE_ITERATIONS = 5
 
 # 识别所涂写区域时的腐蚀参数
-ANS_IMG_ERODE_ITERATIONS = 0
+ANS_IMG_ERODE_ITERATIONS = 4
 
 # 识别所涂写区域时的膨胀腐蚀的kernel
-ANS_IMG_KERNEL = np.ones((2, 2), np.uint8)
+ANS_IMG_KERNEL = np.zeros((3, 3), np.uint8)
+
+ANS_IMG_KERNEL[0, 1] = 1
+ANS_IMG_KERNEL[1, 1] = 1
+ANS_IMG_KERNEL[2, 1] = 1
+ANS_IMG_KERNEL[1, 0] = 1
+ANS_IMG_KERNEL[1, 2] = 1
 
 # 识别所有选项框区域时的二值化参数
 CHOICE_IMG_THRESHOLD = (115, 255)
@@ -42,19 +48,19 @@ CHOICE_IMG_THRESHOLD = (115, 255)
 CHOICE_IMG_DILATE_ITERATIONS = 6
 
 # 识别所有选项框区域时的腐蚀参数
-CHOICE_IMG_ERODE_ITERATIONS = 3
+CHOICE_IMG_ERODE_ITERATIONS = 0
 
 # 识别所有选项框区域时的膨胀腐蚀的kernel
 CHOICE_IMG_KERNEL = np.ones((2, 2), np.uint8)
 
 # 选项框面积的阈值，超过则认为这个轮廓不是选项框
-CHOICE_MAX_AREA = 400
+CHOICE_MAX_AREA = 1000
 
 # 选项框面积的阈值，小于则认为这个轮廓不是选项框
-CHOICE_MIN_AREA = 100
+CHOICE_MIN_AREA = 400
 
 # 总共选项框 + 题号的个数，例如一行3题，总共20列，所以有3 * 20 * 4 + 3 * 20
-CHOICE_CNT_COUNT = 51* 6
+CHOICE_CNT_COUNT = 40 * 6
 
 # 调整亮度的竖向分块数目
 PROCESS_BRIGHT_COLS = 18

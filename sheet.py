@@ -1,6 +1,7 @@
 # coding=utf-8
 import cPickle
 import cv2
+import numpy as np
 from imutils import contours
 from e import ContourCountError, ContourPerimeterSizeError, PolyNodeCountError
 from settings import ANS_IMG_THRESHOLD, CNT_PERIMETER_THRESHOLD, CHOICE_IMG_THRESHOLD, ANS_IMG_DILATE_ITERATIONS, \
@@ -15,7 +16,12 @@ def get_answer_from_sheet(base_img):
 
     # cv2.imshow('temp', base_img)
     # cv2.waitKey(0)
-
+    base_img = cv2.resize(
+        base_img,
+        # (int(round(0.7667 * width)), int(round(0.765625 * height))),*
+        (int(base_img.shape[1] * 0.6), int(base_img.shape[0] * 0.3)),
+        interpolation=cv2.INTER_CUBIC
+    )
     # 灰度化然后进行边缘检测、二值化等等一系列处理
     img = cv2.cvtColor(base_img, cv2.COLOR_BGR2GRAY)
     img = get_init_process_img(img)
@@ -37,38 +43,45 @@ def get_answer_from_sheet(base_img):
     # 计算多边形的顶点，并看是否是四个顶点
     poly_node_list = cv2.approxPolyDP(cnt, cv2.arcLength(cnt, True) * 0.1, True)
     if not poly_node_list.shape[0] == 4:
-        raise PolyNodeCountError
+        raise PolyNodeCountError('PolyNodeCountError')
 
     # 根据计算的多边形顶点继续处理图片，主要是是纠偏
-    processed_img = detect_cnt_again(poly_node_list, base_img)
+    processed_img = detect_cnt_again(poly_node_list, base_img)[10:, ]
 
     # cv2.imshow('temp', processed_img)
     # cv2.waitKey(0)
 
     # 调整图片的亮度
     processed_img = cv2.cvtColor(processed_img, cv2.COLOR_BGR2GRAY)
+    # processed_img = cv2.blur( processed_img, (8, 8))
     processed_img = cv2.GaussianBlur( processed_img, (9, 9), 0)
+    cv2.imshow('temp', processed_img)
+    cv2.waitKey(0)
+
+    # _img = cv2.adaptiveThreshold(processed_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+    #                                    cv2.THRESH_BINARY_INV, 51, 10)
+    # cv2.imshow('temp', _img)
+    # cv2.waitKey(0)
+    # h = get_h_projective(_img)
+    # print h
+
+    # processed_img = processed_img[210:]
+
+    # cv2.imshow('temp', processed_img)
+    # cv2.waitKey(0)
+    # w = 150
+    # processed_img = processed_img[:, w:]
+
     # cv2.imshow('temp', processed_img)
     # cv2.waitKey(0)
 
-    # 通过二值化和膨胀腐蚀获得填涂区域
-    # ret, ans_img = cv2.threshold(processed_img, ANS_IMG_THRESHOLD[0], ANS_IMG_THRESHOLD[1], cv2.THRESH_BINARY_INV)
-    ans_img = cv2.adaptiveThreshold(processed_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 41, 35)
-    ans_img = cv2.dilate(ans_img, ANS_IMG_KERNEL, iterations=ANS_IMG_DILATE_ITERATIONS)
-    ans_img = cv2.erode(ans_img, ANS_IMG_KERNEL, iterations=ANS_IMG_ERODE_ITERATIONS)
-    ret, ans_img = cv2.threshold(ans_img, ANS_IMG_THRESHOLD[0], ANS_IMG_THRESHOLD[1], cv2.THRESH_BINARY_INV)
-
-    # cv2.imshow('temp', ans_img)
-    # cv2.waitKey(0)
 
     # 通过二值化和膨胀腐蚀获得选项框区域
-    choice_img = cv2.adaptiveThreshold(processed_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 51, 10)
-    # ret, choice_img = cv2.threshold(processed_img, CHOICE_IMG_THRESHOLD[0], CHOICE_IMG_THRESHOLD[1],
-    #                                 cv2.THRESH_BINARY_INV)
+    choice_img = cv2.adaptiveThreshold(processed_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 15, 10)
     # cv2.imshow('temp', choice_img)
     # cv2.waitKey(0)
     # get_vertical_projective(choice_img)
-    # get_h_projective(choice_img)
+    # h = get_h_projective(choice_img)
 
     for i in range(1):
         choice_img = cv2.dilate(choice_img, CHOICE_IMG_KERNEL, iterations=CHOICE_IMG_DILATE_ITERATIONS)
@@ -76,6 +89,7 @@ def get_answer_from_sheet(base_img):
 
     # get_vertical_projective(choice_img)
     # get_h_projective(choice_img)
+
     # cv2.imshow('temp', choice_img)
     # cv2.waitKey(0)
 
@@ -83,25 +97,26 @@ def get_answer_from_sheet(base_img):
     cnts, h = cv2.findContours(choice_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     question_cnts = []
 
-    temp1_ans_img = ans_img.copy()
+    temp_white = np.zeros(choice_img.shape, np.uint8)
+    temp_white += 255
     for i, c in enumerate(cnts):
         # 如果面积小于某值，则认为这个轮廓是选项框或题号
         if CHOICE_MIN_AREA < cv2.contourArea(c) < CHOICE_MAX_AREA:
-            cv2.drawContours(temp1_ans_img, cnts, i, (0, 0, 0), 1)
+            cv2.drawContours(temp_white, cnts, i, (0, 0, 0), 1)
             question_cnts.append(c)
 
-    # cv2.imshow('temp', temp1_ans_img)
-    # cv2.waitKey(0)
+    cv2.imshow('temp', temp_white)
+    cv2.waitKey(0)
 
     question_cnts = get_left_right(question_cnts)
     question_cnts = get_top_bottom(question_cnts)
 
-    temp2_ans_img = ans_img.copy()
+    temp_white = np.zeros(choice_img.shape, np.uint8)
+    temp_white += 255
     for i in range(len(question_cnts)):
-        cv2.drawContours(temp2_ans_img, question_cnts, i, (0, 0, 0), 1)
-
-    # cv2.imshow('temp', temp2_ans_img)
-    # cv2.waitKey(0)
+        cv2.drawContours(temp_white, question_cnts, i, (0, 0, 0), 1)
+    cv2.imshow('temp', temp_white)
+    cv2.waitKey(0)
 
     # 如果轮廓小于特定值，重新扫描
     # TODO 运用统计分析排除垃圾轮廓
@@ -121,11 +136,13 @@ def get_answer_from_sheet(base_img):
 
     insert_null_2_rows(cols, rows)
     # 获得答案
-    rows, res = get_ans(ans_img, rows)
-    if not res[0]:
-        print res[1]
-        cv2.imshow('temp1', temp2_ans_img)
-        cv2.waitKey(0)
-        print 'end'
-    else:
-        print res
+    # rows, res, ans = get_ans(ans_img, rows)
+    ans, gray = get_ans(processed_img, rows)
+    return ans, gray
+    # if not res[0]:
+    #     print res[1]
+    #     cv2.imshow('temp1', temp2_ans_img)
+    #     cv2.waitKey(0)
+    #     print 'end'
+    # else:
+    #     print res

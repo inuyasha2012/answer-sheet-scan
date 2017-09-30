@@ -1,5 +1,6 @@
 import cv2
 from sheet import get_answer_from_sheet
+from write import write_scores
 
 cap = cv2.VideoCapture(1)
 
@@ -14,7 +15,8 @@ while True:
         interpolation=cv2.INTER_CUBIC
     )
     try:
-        get_answer_from_sheet(frame)
+        scores = get_answer_from_sheet(frame)
+        write_scores('data.xls', scores)
         break
     except Exception as e:
         # print e

@@ -9,7 +9,7 @@ from e import PolyNodeCountError
 from score import score
 from settings import CHOICES, SHEET_AREA_MIN_RATIO, PROCESS_BRIGHT_COLS, PROCESS_BRIGHT_ROWS, BRIGHT_VALUE, \
     CHOICE_COL_COUNT, CHOICES_PER_QUE, WHITE_RATIO_PER_CHOICE, MAYBE_MULTI_CHOICE_THRESHOLD, CHOICE_CNT_COUNT, test_ans, \
-    ORIENT_CODE
+    ORIENT_CODE, ANS_IMG_KERNEL, ANS_IMG_ERODE_ITERATIONS, ANS_IMG_DILATE_ITERATIONS
 
 
 def get_corner_node_list(poly_node_list):
@@ -47,18 +47,18 @@ def detect_cnt_again(poly, base_img):
     # 计算多边形四个顶点，并且截图，然后处理截取后的图片
     top_left, bottom_left, top_right, bottom_right = get_corner_node_list(poly)
     roi_img = get_roi_img(base_img, bottom_left, bottom_right, top_left, top_right)
-    img = get_init_process_img(roi_img)
+    # img = get_init_process_img(roi_img)
 
-    # 获得面积最大的轮廓
-    cnt = get_max_area_cnt(img)
-
-    # 如果轮廓面积足够大，重新计算多边形四个顶点
-    if cv2.contourArea(cnt) > roi_img.shape[0] * roi_img.shape[1] * SHEET_AREA_MIN_RATIO:
-        flag = True
-        poly = cv2.approxPolyDP(cnt, cv2.arcLength((cnt,), True) * 0.1, True)
-        top_left, bottom_left, top_right, bottom_right = get_corner_node_list(poly)
-        if not poly.shape[0] == 4:
-            raise PolyNodeCountError
+    # # 获得面积最大的轮廓
+    # cnt = get_max_area_cnt(img)
+    #
+    # # 如果轮廓面积足够大，重新计算多边形四个顶点
+    # if cv2.contourArea(cnt) > roi_img.shape[0] * roi_img.shape[1] * SHEET_AREA_MIN_RATIO:
+    #     flag = True
+    #     poly = cv2.approxPolyDP(cnt, cv2.arcLength((cnt,), True) * 0.1, True)
+    #     top_left, bottom_left, top_right, bottom_right = get_corner_node_list(poly)
+    #     if not poly.shape[0] == 4:
+    #         raise PolyNodeCountError
 
     # 多边形顶点和图片顶点，主要用于纠偏
     base_poly_nodes = np.float32([top_left[0], bottom_left[0], top_right[0], bottom_right[0]])
@@ -110,7 +110,7 @@ def get_roi_img(base_img, bottom_left, bottom_right, top_left, top_right):
     max_v = top_right[0, 1] if top_right[0, 1] > bottom_right[0, 1] else bottom_right[0, 1]
     min_h = top_left[0, 0] if top_left[0, 0] < top_right[0, 0] else top_right[0, 0]
     max_h = bottom_left[0, 0] if bottom_left[0, 0] > bottom_right[0, 0] else bottom_right[0, 0]
-    roi_img = base_img[min_v + 10:max_v - 10, min_h + 10:max_h - 10]
+    roi_img = base_img[min_v - 10:max_v + 10, min_h - 10:max_h + 10]
     return roi_img
 
 
@@ -121,6 +121,10 @@ def get_max_area_cnt(img):
     :return: ndarray
     """
     cnts, hierarchy = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # for c in cnts:
+    #     cv2.drawContours(base, [c], 0, (0, 255, 0), 1)
+    # cv2.imshow('temp', base)
+    # cv2.waitKey(0)
     cnt = max(cnts, key=lambda c: cv2.contourArea(c))
     return cnt
 
@@ -128,8 +132,6 @@ def get_max_area_cnt(img):
 def get_ans(ans_img, rows):
     # 选项个数加上题号
     interval = get_item_interval()
-    my_score = 0
-
     items_per_row = get_items_per_row()
     ans = []
     for i, row in enumerate(rows):
@@ -137,45 +139,54 @@ def get_ans(ans_img, rows):
         for k in range(items_per_row):
             print '======================================='
             percent_list = []
-            for j, c in enumerate(row[1 + k * interval:interval + k * interval]):
-                try:
-                    # 获得选项框的区域
+            block = row[1 + k * interval:interval + k * interval]
+            item_no = i * 4 + k + 1
+            if item_no < 100:
+                for j, c in enumerate(block):
                     new = ans_img[c[1]:(c[1] + c[3]), c[0]:(c[0] + c[2])]
-                    # 计算白色像素个数和所占百分比
-                    white_count = np.count_nonzero(new)
-                    percent = white_count * 1.0 / new.size
-                except IndexError:
-                    percent = 1
-                percent_list.append({'col': k + 1, 'row': i + 1, 'percent': percent, 'choice': CHOICES[j]})
-
-            percent_list.sort(key=lambda x: x['percent'])
-            choice_pos_n_ans = [percent_list[0]['row'], percent_list[0]['col']]
-            choice_pos = (percent_list[0]['row'], percent_list[0]['col'])
-            # if percent_list[1]['percent'] < 0.6 or (percent_list[1]['percent'] < WHITE_RATIO_PER_CHOICE and \
-            #                 abs(percent_list[1]['percent'] - percent_list[0]['percent']) < MAYBE_MULTI_CHOICE_THRESHOLD):
-            #     print u'第%s排第%s列的作答：可能多涂了选项' % choice_pos
-            #     print u"第%s排第%s列的作答：%s" % choice_pos_n_ans
-            #     ans.append(percent_list[0]['choice'])
-            _ans = ''
-            for percent in percent_list:
-                if percent['percent'] < 0.8:
-                    _ans += percent['choice']
-            ans.append(''.join(sorted(list(_ans))))
-            choice_pos_n_ans.append(''.join(sorted(list(_ans))))
-            print u'第{0}排第{1}列的作答：{2}'.format(*choice_pos_n_ans)
-            # elif percent_list[0]['percent'] < WHITE_RATIO_PER_CHOICE:
-            #     # key = (percent_list[0]['row'] - 1) * 3 + percent_list[0]['col']
-            #     # my_score += 1 if score.get(key) == percent_list[0]['choice'] else 0
-            #     # print 1 if score.get(key) == percent_list[0]['choice'] else 0
-            #     print u"第%s排第%s列的作答：%s" % choice_pos_n_ans
-            #     print percent_list[0]['percent']
-            #     ans.append(percent_list[0]['choice'])
-            # else:
-            #     print u"第%s排第%s列的作答：可能没有填涂" % choice_pos
-            #     print percent_list[0]['percent']
-            #     ans.append(None)
-    print '=====总分========'
-    return rows, test_is_eq(ans, test_ans)
+                    percent = np.mean(new)
+                    percent_list.append({'col': k + 1, 'row': i + 1, 'percent': percent, 'choice': CHOICES[j]})
+                percent_list.sort(key=lambda x: x['percent'])
+                _ans = percent_list[0]['choice']
+                ans.append(_ans)
+            else:
+                left = row[1 + k * interval]
+                right = row[interval + k * interval - 1]
+                temp = ans_img[left[1]:(left[1] + left[3]), left[0]:(right[0] + right[2])]
+                # cv2.imshow('temp', temp)
+                # cv2.waitKey(0)
+                mean = np.mean(temp)
+                std = np.std(temp)
+                temp = cv2.threshold(temp, int(mean - std), 255, cv2.THRESH_BINARY_INV)[1]
+                # cv2.imshow('temp', temp)
+                # cv2.waitKey(0)
+                # temp = cv2.erode(temp, ANS_IMG_KERNEL, iterations=ANS_IMG_ERODE_ITERATIONS)
+                # temp = cv2.dilate(temp, ANS_IMG_KERNEL, iterations=ANS_IMG_DILATE_ITERATIONS)
+                # cv2.imshow('temp', temp)
+                # cv2.waitKey(0)
+                lt = 0
+                for j, c in enumerate(block):
+                    try:
+                        # 获得选项框的区域
+                        new = temp[:, lt:lt + c[2]]
+                        try:
+                            lt = lt + block[j + 1][0] - c[0]
+                        except IndexError:
+                            pass
+                        # 计算白色像素个数和所占百分比
+                        percent = np.mean(new)
+                    except IndexError:
+                        percent = 1
+                    percent_list.append({'col': k + 1, 'row': i + 1, 'percent': percent, 'choice': CHOICES[j]})
+                percent_list.sort(key=lambda x: x['percent'], reverse=True)
+                _ans = percent_list[0]['choice']
+                for percent in percent_list[1:]:
+                    if percent['percent'] > percent_list[0]['percent'] * 0.5:
+                        _ans += percent['choice']
+                _ans = ''.join(sorted(list(_ans)))
+                ans.append(''.join(sorted(list(_ans))))
+            print u'第{0}题的作答：{1}'.format(item_no, _ans)
+    return ans, np.mean(ans_img)
 
 
 def test_is_eq(ans, test_ans):
@@ -229,8 +240,8 @@ def get_left_right(cnts):
         dt[distance] = cents_pos[i:i + CHOICE_COL_COUNT]
     keys = dt.keys()
     key_min = min(keys)
-    if key_min >= 10:
-        raise
+    if key_min >= 20:
+        raise ValueError('270')
     w = sorted(dt[key_min], key=lambda x: x[0])
     lt, rt = w[0][0] - w[0][2] * 0.5, w[-1][0] + w[-1][2] * 0.5
     count = 0
@@ -256,7 +267,7 @@ def get_top_bottom(cnts):
     keys = dt.keys()
     key_min = min(keys)
     if key_min >= 10:
-        raise
+        raise ValueError('296')
     w = sorted(dt[key_min], key=lambda x: x[1])
     top, bottom = w[0][1] - w[0][3] * 0.5, w[-1][1] + w[-1][3] * 0.5
     count = 0
@@ -361,7 +372,7 @@ def ck_full_rows_size(rows):
         if len(row) == CHOICE_COL_COUNT:
             count += 1
     if count < 1:
-        raise
+        raise ValueError(401)
 
 
 def ck_full_cols_size(rows):
@@ -371,7 +382,7 @@ def ck_full_cols_size(rows):
         if len(row) == choice_row_count:
             count += 1
     if count < 1:
-        raise
+        raise ValueError(411)
 
 
 def get_vertical_projective(img):
@@ -381,25 +392,28 @@ def get_vertical_projective(img):
             t = cv2.cv.Get2D(cv2.cv.fromarray(img), y, x)
             if t[0] == 255:
                 w[x] += 1
-    # show_fuck(img, w)
-    seg(w, img)
-    return w
+    # # show_fuck(img, w)
+    # cv2.imshow('temp1', img[:, w[10:].index(max(w[10:])):])
+    # cv2.waitKey(0)
+    # seg(w, img)
+    print w[len(w)/20:].index(max(w[20:])) + len(w) / 20
+    return w[len(w)/20:].index(max(w[20:])) + len(w) / 20
 
 
 def get_h_projective(img):
-    h = [0] * img.shape[0]
-    for y in range(img.shape[0]):
-        for x in range(img.shape[1]):
-            s = cv2.cv.Get2D(cv2.cv.fromarray(img), y, x)
-            if s[0] == 255:
-                h[y] += 1
-    painty = np.zeros(img.shape, np.uint8)
-    painty = painty + 255
-    for y in range(img.shape[0]):
-        for x in range(h[y]):
-            cv2.cv.Set2D(cv2.cv.fromarray(painty), y, x, (0, 0, 0, 0))
-    cv2.imshow('painty', painty)
-    cv2.waitKey(0)
+    img[img == 255] = 1
+    h = np.sum(img, axis=1)
+    # painty = np.zeros(img.shape, np.uint8)
+    # painty = painty + 255
+    # for y in range(img.shape[0]):
+    #     for x in range(h[y]):
+    #         cv2.cv.Set2D(cv2.cv.fromarray(painty), y, x, (0, 0, 0, 0))
+    # cv2.imshow('painty', painty)
+    # cv2.waitKey(0)
+    # cv2.imshow('temp', img[h.index(max(h)):,])
+    # cv2.waitKey(0)
+    return np.argmax(h[h.size/20:]) + h.size / 20
+    # get_vertical_projective(img[:h.index(max(h)), ])
 
 
 def show_fuck(img, w):
